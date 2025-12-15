@@ -1,0 +1,27 @@
+name: Daily Multi-Model Batch
+
+on:
+  schedule:
+    - cron: "30 4 * * *"   # 10:00 AM IST (UTC+5:30)
+  workflow_dispatch:
+
+jobs:
+  run-batch:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install openai requests
+
+      - name: Run daily batch
+        env:
+          SIMPLISMART_API_KEY: ${{ secrets.SIMPLISMART_API_KEY }}
+        run: python daily_batch.py
