@@ -100,58 +100,6 @@ except Exception as e:
         "error": str(e)
     }
 
-# =====================================================
-# 🎧 2. WHISPER (AUDIO MODEL)
-# =====================================================
-try:
-    # FIXED: Switched from unstable university URLs to Wikimedia Commons
-    audio_sources = [
-        "https://upload.wikimedia.org/wikipedia/commons/4/45/En-us-hello.ogg",
-        "https://upload.wikimedia.org/wikipedia/commons/3/3c/En-us-weather.ogg"
-    ]
-    audio_url = random.choice(audio_sources)
-    audio_path = os.path.join(BASE_DIR, "sample_audio.ogg")
-
-    with requests.get(audio_url, stream=True, timeout=30) as r:
-        with open(audio_path, "wb") as f:
-            for chunk in r.iter_content(1024):
-                f.write(chunk)
-
-    with open(audio_path, "rb") as f:
-        audio_b64 = base64.b64encode(f.read()).decode()
-
-    payload = {
-        "audio_file": audio_b64,
-        "task": "transcribe",
-        "language": "en",
-        "without_timestamps": True
-    }
-
-    headers = {
-        "Authorization": f"Bearer {SIMPLISMART_API_KEY}",
-        "Content-Type": "application/json"
-    }
-
-    resp = requests.post(
-        WHISPER_URL,
-        json=payload,
-        headers=headers,
-        timeout=60
-    ).json()
-
-    report["results"]["whisper_large_v2"] = {
-        "status": "success",
-        "input": audio_url,
-        "output_preview": str(resp)[:300]
-    }
-
-    os.remove(audio_path)
-
-except Exception as e:
-    report["results"]["whisper_large_v2"] = {
-        "status": "failure",
-        "error": str(e)
-    }
 
 # =====================================================
 # 🖼️ 3. DEEPSEEK OCR (IMAGE MODEL)
