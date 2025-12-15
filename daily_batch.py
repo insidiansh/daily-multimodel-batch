@@ -1,31 +1,3 @@
-"""
-DAILY MULTI-MODEL HEALTH & INFERENCE BATCH
-
-What this script does:
-- Runs GPT-OSS-120B (text), Whisper (audio), DeepSeek-OCR (image)
-- Uses RANDOM open-source input for each model every day
-- Records which model WORKED and which FAILED
-- Outputs ONE consolidated JSON report
-
-Previous errors (now FIXED):
-1. Whisper failures:
-   - Cause: Audio URLs from www2.cs.uic.edu often fail DNS resolution in Colab/VMs
-   - Fix: Switched to Wikimedia Commons audio (globally cached, stable)
-
-2. DeepSeek OCR failures:
-   - Cause: OCR backend could not fetch some image URLs (403 Forbidden)
-   - Fix: Download image locally and send BASE64 instead of image_url
-
-3. Partial pipeline failures:
-   - Cause: One model failure stopped the flow
-   - Fix: Each model runs in isolated try/except blocks
-
-This version is production-safe.
-"""
-
-# =====================================================
-# 📦 IMPORTS
-# =====================================================
 import os
 import json
 import datetime
@@ -34,23 +6,26 @@ import requests
 import base64
 from openai import OpenAI
 
-# =====================================================
-# 🔑 CONFIG (API KEY VIA ENV VAR)
-# =====================================================
+# CONFIG
+
+os.environ["SIMPLISMART_API_KEY"] = (
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
+    "eyJ1dWlkIjoiMjcxMDc0ZDctYTM0NS00MDkzLWE0ZWEtOGNiNzRhODk2MWVlIiwi"
+    "ZXhwIjoxNzY2MzQ0ODk1LCJvcmdfdXVpZCI6IjgwNzcwZGZjLTc3ZTAtNDE2MC05"
+    "M2NhLTY3OGRlMmRkMTY1MSJ9."
+    "X493Kt4Lih9yboyEtYJuoGKJo4emW5-kdnWjhqGBS7U"
+)
 SIMPLISMART_API_KEY = os.getenv("SIMPLISMART_API_KEY")
 if not SIMPLISMART_API_KEY:
     raise RuntimeError("SIMPLISMART_API_KEY not set")
 
 SIMPLISMART_BASE_URL = "https://api.simplismart.live"
-WHISPER_URL = "https://http.whisper.proxy.prod.s9t.link/model/infer/whisper"
 
-BASE_DIR = os.getcwd()
-OUTPUT_DIR = os.path.join(BASE_DIR, "output")
+OUTPUT_DIR = "output"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# =====================================================
-# 📅 METADATA
-# =====================================================
+# METADATA
+
 today = datetime.date.today().isoformat()
 run_time = datetime.datetime.now().strftime("%H:%M")
 
@@ -60,66 +35,60 @@ report = {
     "results": {}
 }
 
-# =====================================================
-# 🧠 1. GPT-OSS-120B (TEXT MODEL)
-# =====================================================
+# 1. GPT-OSS-120B (TEXT)
+
 try:
-    # Random public-domain text every day
     text_sources = [
-        "https://www.gutenberg.org/files/84/84-0.txt",    # Frankenstein
-        "https://www.gutenberg.org/files/1342/1342-0.txt",# Pride & Prejudice
-        "https://www.gutenberg.org/files/11/11-0.txt"     # Alice in Wonderland
+        "https://www.gutenberg.org/files/84/84-0.txt",
+        "https://www.gutenberg.org/files/1342/1342-0.txt",
+        "https://www.gutenberg.org/files/11/11-0.txt"
     ]
+
     text_url = random.choice(text_sources)
-    text = requests.get(text_url, timeout=20).text[:2000]
+    text = requests.get(text_url, timeout=20).text[:1500]
 
     client = OpenAI(
         api_key=SIMPLISMART_API_KEY,
         base_url=SIMPLISMART_BASE_URL,
-        default_headers={
-            "id": "524436ef-5d4c-4d55-9351-71d67036b92b"  # GPT tenant ID
-        }
+        default_headers={"id": "524436ef-5d4c-4d55-9351-71d67036b92b"}
     )
 
     resp = client.chat.completions.create(
         model="openai/gpt-oss-120b",
         messages=[{"role": "user", "content": f"Summarize this text:\n{text}"}],
-        max_tokens=300,
+        max_tokens=200,
         temperature=0
     )
 
-    report["results"]["gpt_oss_120b"] = {
-        "status": "success",
-        "input": text_url,
-        "output_preview": resp.choices[0].message.content[:300]
+    report["results"]["openai/gpt-oss-120b"] = {
+        "status": 200
     }
 
 except Exception as e:
-    report["results"]["gpt_oss_120b"] = {
-        "status": "failure",
-        "error": str(e)
+    report["results"]["openai/gpt-oss-120b"] = {
+        "status": 500
     }
-
-
-# =====================================================
-# 🖼️ 3. DEEPSEEK OCR (IMAGE MODEL)
-# =====================================================
+# 2. DEEPSEEK OCR (IMAGE)
 try:
-    # FIXED: OCR now uses BASE64 image upload (not image_url)
     image_sources = [
         "https://upload.wikimedia.org/wikipedia/commons/4/4b/ReceiptSwiss.jpg",
         "https://upload.wikimedia.org/wikipedia/commons/3/3f/Fax2.png"
     ]
+
     image_url = random.choice(image_sources)
-    image_bytes = requests.get(image_url, timeout=20).content
-    image_b64 = base64.b64encode(image_bytes).decode()
+
+    image_bytes = requests.get(
+        image_url,
+        headers={"User-Agent": "Mozilla/5.0"},
+        timeout=30
+    ).content
+
+    image_b64 = base64.b64encode(image_bytes).decode("utf-8")
 
     client = OpenAI(
         api_key=SIMPLISMART_API_KEY,
         base_url=SIMPLISMART_BASE_URL,
-        default_headers={
-            "id": "81095ce8-515a-442a-8514-d4424ec84ce2"  # OCR tenant ID
-        }
+        default_headers={"id": "81095ce8-515a-442a-8514-d4424ec84ce2"}
     )
 
     resp = client.chat.completions.create(
@@ -131,25 +100,19 @@ try:
                 {"type": "image_base64", "image_base64": image_b64}
             ]
         }],
-        max_tokens=500,
+        max_tokens=300,
         temperature=0
     )
 
-    report["results"]["deepseek_ocr"] = {
-        "status": "success",
-        "input": image_url,
-        "output_preview": resp.choices[0].message.content[:300]
+    report["results"]["deepseek-ai/DeepSeek-OCR"] = {
+        "status": 200
     }
 
 except Exception as e:
-    report["results"]["deepseek_ocr"] = {
-        "status": "failure",
-        "error": str(e)
+    report["results"]["deepseek-ai/DeepSeek-OCR"] = {
+        "status": 500
     }
 
-# =====================================================
-# 💾 SAVE & PRINT JSON REPORT
-# =====================================================
 output_path = os.path.join(
     OUTPUT_DIR,
     f"daily_model_health_{today}.json"
