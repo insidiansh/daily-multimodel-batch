@@ -6,11 +6,6 @@ import requests
 import base64
 from openai import OpenAI
 
-# CONFIG
-
-os.environ["SIMPLISMART_API_KEY"] = (
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1dWlkIjoiMjcxMDc0ZDctYTM0NS00MDkzLWE0ZWEtOGNiNzRhODk2MWVlIiwiZXhwIjoxNzY4OTg3MzcwLCJvcmdfdXVpZCI6IjgwNzcwZGZjLTc3ZTAtNDE2MC05M2NhLTY3OGRlMmRkMTY1MSJ9.VO-IYZUTFkCKg_0FWC65PVqGkKw_65s_Aa_9MDZHa5s"
-)
 SIMPLISMART_API_KEY = os.getenv("SIMPLISMART_API_KEY")
 if not SIMPLISMART_API_KEY:
     raise RuntimeError("SIMPLISMART_API_KEY not set")
